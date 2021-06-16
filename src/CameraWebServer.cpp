@@ -2,6 +2,7 @@
 #include "esp_camera.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
+#include <ESP32Servo.h> 
 
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
@@ -23,6 +24,16 @@
 
 const char* ssid = "HAL9000";
 const char* password = "9895363Pass";
+
+
+Servo myservo;  // create servo object to control a servo
+
+// Possible PWM GPIO pins on the ESP32: 0(used by on-board button),2,4,5(used by on-board LED),12-19,21-23,25-27,32-33 
+int servoPin = 12;      // GPIO pin used to connect the servo control (digital out)
+
+
+
+
 
 void startCameraServer();
 
@@ -114,6 +125,19 @@ void setup() {
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
+
+
+  	// Allow allocation of all timers
+	ESP32PWM::allocateTimer(0);
+	ESP32PWM::allocateTimer(1);
+	ESP32PWM::allocateTimer(2);
+	ESP32PWM::allocateTimer(3);
+  myservo.setPeriodHertz(50);// Standard 50hz servo
+  myservo.attach(servoPin, 500, 2400);   // attaches the servo on pin 18 to the servo object
+                                         // using SG90 servo min/max of 500us and 2400us
+                                         // for MG995 large servo, use 1000us and 2000us,
+                                         // which are the defaults, so this line could be
+                                         // "myservo.attach(servoPin);"
 }
 
 void loop() {
