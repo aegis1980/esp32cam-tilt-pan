@@ -43,12 +43,12 @@
 
 #include "camera_pins.h"
 
-#define DEVICE_NAME "esp32right"
+#define DEVICE_NAME "esp32left"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 
 #define SERVO_PAN_PIN      12
-#define SERVO_TILT_PIN      13
+#define SERVO_TILT_PIN      15
 
 #define STEP   5
 
@@ -58,7 +58,7 @@ Servo panServo;  // create servo object to control a servo
 Servo tiltServo;
 
 
-int tiltServoPos = 0;
+int tiltServoPos = 90;
 int panServoPos = 0;
 
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -174,7 +174,6 @@ static esp_err_t cmd_handler(httpd_req_t *req){
             panServoPos += STEP;
             panServo.write(panServoPos);
           }
-          Serial.println(panServoPos);
           Serial.println("Left");
         }
         else if(!strcmp(variable, "right")) {
@@ -226,8 +225,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   char * p = json_response;
   *p++ = '{';
-  p+=sprintf(p, "\"tilt\":%u,", panServo.read());
-  p+=sprintf(p, "\"pan\":%u", tiltServo.read());
+  p+=sprintf(p, "\"tilt\":%u,", tiltServo.read());
+  p+=sprintf(p, "\"pan\":%u", panServo.read());
   *p++ = '}';
   *p++ = 0;
   httpd_resp_set_type(req, "application/json");
