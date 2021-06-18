@@ -26,6 +26,7 @@
 #include "esp_http_server.h"
 #include <ESP32Servo.h>
 #include <ESPmDNS.h>
+#include <EEPROM.h>
 
 #include "network_credentials.h"
 #include "cam_index.h" // ie. index.html
@@ -43,12 +44,18 @@
 
 #include "camera_pins.h"
 
-#define DEVICE_NAME "esp32left"
+#define DEVICE_NAME "esp32right"
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 
 #define SERVO_PAN_PIN      12
 #define SERVO_TILT_PIN      15
+
+// define the number of bytes you want to access
+#define EEPROM_SIZE 2
+
+#define EEPROM_PAN_ADDRESS 0
+#define EEPROM_TILT_ADDRESS 1
 
 #define STEP   5
 
@@ -67,6 +74,19 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 httpd_handle_t camera_httpd = NULL;
 httpd_handle_t stream_httpd = NULL;
+
+
+static void setTiltPanEeprom(){
+    // read saved pan & tilt angles, if they exist.
+  panServoPos = EEPROM.read(EEPROM_PAN_ADDRESS);
+  if (panServoPos==255) panServoPos = 0;
+  panServo.write(panServoPos);
+
+
+  tiltServoPos = EEPROM.read(EEPROM_TILT_ADDRESS);
+  if (tiltServoPos==255) tiltServoPos = 0;
+  tiltServo.write(tiltServoPos);
+}
 
 
 static esp_err_t index_handler(httpd_req_t *req){
@@ -139,9 +159,10 @@ static esp_err_t cmd_handler(httpd_req_t *req){
   char*  buf;
   size_t buf_len;
   char variable[32] = {0,};
+  char degrees[32] = {0,};
 
   int res = 0;
-  
+  int deg = STEP;
   
   buf_len = httpd_req_get_url_query_len(req) + 1;
   if (buf_len > 1) {
@@ -151,40 +172,44 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       return ESP_FAIL;
     }
     if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {// control servo(s)
-      if (httpd_query_key_value(buf, "go", variable, sizeof(variable)) == ESP_OK) {
-          
+      if (httpd_query_key_value(buf, "go", variable, sizeof(variable)) == ESP_OK) { 
+        if (httpd_query_key_value(buf, "degrees", degrees, sizeof(degrees)) == ESP_OK){
+          deg = atoi(degrees);
+        } else {
+          deg = STEP;
+        }
+
         if(!strcmp(variable, "up")) {
-          if(tiltServoPos <= (180- STEP)) {
-            tiltServoPos += STEP;
+          if(tiltServoPos <= (180- deg)) {
+            tiltServoPos += deg;
             tiltServo.write(tiltServoPos);
           }
           Serial.println(tiltServoPos);
           Serial.println("Up");
         }
         else if(!strcmp(variable, "down")) {
-          if(tiltServoPos >= STEP) {
-            tiltServoPos -= STEP;
+          if(tiltServoPos >= deg) {
+            tiltServoPos -= deg;
             tiltServo.write(tiltServoPos);
           }
           Serial.println(tiltServoPos);
           Serial.println("Down");
         }
         else if(!strcmp(variable, "left")) {
-          if(panServoPos <= (180 - STEP)) {
-            panServoPos += STEP;
+          if(panServoPos <= (180 - deg)) {
+            panServoPos += deg;
             panServo.write(panServoPos);
           }
           Serial.println("Left");
         }
         else if(!strcmp(variable, "right")) {
-          if(panServoPos >= STEP) {
-            panServoPos -= STEP;
+          if(panServoPos >= deg) {
+            panServoPos -= deg;
             panServo.write(panServoPos);
           }
           Serial.println(panServoPos);
           Serial.println("Right");
         }
-
         else {
           res = -1;
         }
@@ -194,11 +219,21 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         sensor_t * s = esp_camera_sensor_get();
         if(s->pixformat == PIXFORMAT_JPEG) res = s->set_framesize(s, (framesize_t)val);
       } 
-      else if (httpd_query_key_value(buf, "quality", variable, sizeof(variable)) == ESP_OK) { // change camera qulality
+      else if (httpd_query_key_value(buf, "quality", variable, sizeof(variable)) == ESP_OK) { // change camera quality
         int val = atoi(variable);
         sensor_t * s = esp_camera_sensor_get();
         res = s->set_quality(s, val);
-      }       
+      }    
+      else if (httpd_query_key_value(buf, "eeprom", variable, sizeof(variable)) == ESP_OK) { // 0 to revert to last eeprom, 1 to save to eeprom.
+        int val = atoi(variable);
+        if (val==1){
+          EEPROM.write(EEPROM_TILT_ADDRESS,tiltServoPos);
+          EEPROM.write(EEPROM_PAN_ADDRESS,panServoPos);
+          EEPROM.commit();
+        } else {
+          setTiltPanEeprom();
+        }
+      }     
       
       else {
         free(buf);
@@ -278,7 +313,19 @@ void setup() {
   panServo.attach(SERVO_PAN_PIN);
   tiltServo.attach(SERVO_TILT_PIN);
   
+
+   // initialize EEPROM with predefined size
+  EEPROM.begin(EEPROM_SIZE);
+  setTiltPanEeprom();
+
+  // read saved pan & tilt angles, if they exist.
+  panServoPos = EEPROM.read(EEPROM_PAN_ADDRESS);
+  if (panServoPos==255) panServoPos = 0;
   panServo.write(panServoPos);
+
+
+  tiltServoPos = EEPROM.read(EEPROM_TILT_ADDRESS);
+  if (tiltServoPos==255) tiltServoPos = 0;
   tiltServo.write(tiltServoPos);
 
   
