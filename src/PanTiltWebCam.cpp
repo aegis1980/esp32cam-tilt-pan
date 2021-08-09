@@ -26,6 +26,7 @@
 #include "esp_http_server.h"
 #include <ESP32Servo.h>
 #include <ESPmDNS.h>
+#include <ArduinoOTA.h>
 #include <EEPROM.h>
 
 #include "network_credentials.h"
@@ -40,6 +41,10 @@
 //#define CAMERA_MODEL_M5STACK_ESP32CAM // No PSRAM
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
 //#define CAMERA_MODEL_TTGO_T_JOURNAL // No PSRAM
+
+// Hardware Horizontal Mirror, 0 or 1 (overrides default board setting)
+// Hardware Vertical Flip , 0 or 1 (overrides default board setting)
+#define REVERSE_MOUNT 1
 
 
 #include "camera_pins.h"
@@ -76,7 +81,7 @@ httpd_handle_t camera_httpd = NULL;
 httpd_handle_t stream_httpd = NULL;
 
 
-static void setTiltPanEeprom(){
+static void setTiltPanFromEeprom(){
     // read saved pan & tilt angles, if they exist.
   panServoPos = EEPROM.read(EEPROM_PAN_ADDRESS);
   if (panServoPos==255) panServoPos = 0;
@@ -148,7 +153,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
     if(res != ESP_OK){
       break;
     }
-    //Serial.printf("MJPG: %uB\n",(uint32_t)(_jpg_buf_len));
+
   }
   return res;
 }
@@ -179,36 +184,36 @@ static esp_err_t cmd_handler(httpd_req_t *req){
           deg = STEP;
         }
 
-        if(!strcmp(variable, "up")) {
+        if(!strcmp(variable, "down")) {
           if(tiltServoPos <= (180- deg)) {
             tiltServoPos += deg;
             tiltServo.write(tiltServoPos);
           }
           Serial.println(tiltServoPos);
-          Serial.println("Up");
+          Serial.println("down");
         }
-        else if(!strcmp(variable, "down")) {
+        else if(!strcmp(variable, "up")) {
           if(tiltServoPos >= deg) {
             tiltServoPos -= deg;
             tiltServo.write(tiltServoPos);
           }
           Serial.println(tiltServoPos);
-          Serial.println("Down");
+          Serial.println("up");
         }
-        else if(!strcmp(variable, "left")) {
+        else if(!strcmp(variable, "right")) {
           if(panServoPos <= (180 - deg)) {
             panServoPos += deg;
             panServo.write(panServoPos);
           }
-          Serial.println("Left");
+          Serial.println("right");
         }
-        else if(!strcmp(variable, "right")) {
+        else if(!strcmp(variable, "left")) {
           if(panServoPos >= deg) {
             panServoPos -= deg;
             panServo.write(panServoPos);
           }
           Serial.println(panServoPos);
-          Serial.println("Right");
+          Serial.println("left");
         }
         else {
           res = -1;
@@ -224,14 +229,14 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         sensor_t * s = esp_camera_sensor_get();
         res = s->set_quality(s, val);
       }    
-      else if (httpd_query_key_value(buf, "eeprom", variable, sizeof(variable)) == ESP_OK) { // 0 to revert to last eeprom, 1 to save to eeprom.
+      else if (httpd_query_key_value(buf, "eeprom", variable, sizeof(variable)) == ESP_OK) { // 0 to revert to last eeprom, 1 to save current tilt & pan to eeprom.
         int val = atoi(variable);
         if (val==1){
           EEPROM.write(EEPROM_TILT_ADDRESS,tiltServoPos);
           EEPROM.write(EEPROM_PAN_ADDRESS,panServoPos);
           EEPROM.commit();
         } else {
-          setTiltPanEeprom();
+          setTiltPanFromEeprom();
         }
       }     
       
@@ -316,7 +321,7 @@ void setup() {
 
    // initialize EEPROM with predefined size
   EEPROM.begin(EEPROM_SIZE);
-  setTiltPanEeprom();
+  setTiltPanFromEeprom();
 
   // read saved pan & tilt angles, if they exist.
   panServoPos = EEPROM.read(EEPROM_PAN_ADDRESS);
@@ -370,6 +375,14 @@ void setup() {
     Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
+  sensor_t * s = esp_camera_sensor_get();
+  // effectively rotate 180 deg to suit install on pan and tilt holder
+  #if defined(REVERSE_MOUNT)
+    // effectively rotate 180 deg to suit install on pan and tilt holder
+      s->set_hmirror(s, REVERSE_MOUNT);
+      s->set_vflip(s, REVERSE_MOUNT);
+  #endif
+
   // Wi-Fi connection
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
@@ -385,6 +398,45 @@ void setup() {
           delay(1000);
       }
   }
+
+ #if defined(OTA_UPDATE)
+    // Start OTA once connected
+    Serial.println("Setting up OTA");
+    // Port defaults to 3232
+    // ArduinoOTA.setPort(3232); 
+    // Hostname defaults to esp3232-[MAC]
+    ArduinoOTA.setHostname(myName);
+    // No authentication by default
+    #if defined (OTA_PASSWORD)
+        ArduinoOTA.setPassword(OTA_PASSWORD);
+        Serial.printf("OTA Password: %s\n\r", OTA_PASSWORD);
+    #endif
+    ArduinoOTA
+        .onStart([]() {
+          String type;
+          if (ArduinoOTA.getCommand() == U_FLASH)
+            type = "sketch";
+          else // U_SPIFFS
+            type = "filesystem";
+          // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+          Serial.println("Start updating " + type);
+        })
+        .onEnd([]() {
+          Serial.println("\nEnd");
+        })
+        .onProgress([](unsigned int progress, unsigned int total) {
+          Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+        })
+        .onError([](ota_error_t error) {
+          Serial.printf("Error[%u]: ", error);
+          if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+          else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+          else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+          else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+          else if (error == OTA_END_ERROR) Serial.println("End Failed");
+        });
+    ArduinoOTA.begin();
+  #endif
 
   // Start streaming web server
   startCameraServer();
