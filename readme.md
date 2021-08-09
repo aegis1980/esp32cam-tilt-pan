@@ -56,12 +56,18 @@ Move `<x>` degrees
 
 ```http://<name>.local/action?quality=<quality>```
 
+
 ### EEPROM
 
 Reset camera to saved settings
 
 ```http://<name>.local/action?eeprom=0```
 
-Save current cmaera settings to EEPROM
+Save current camera settings to EEPROM
 
 ```http://<name>.local/action?eeprom=1```
+
+
+#### Software reset on ESP32
+
+```http://<name>.local/action?reset=1```

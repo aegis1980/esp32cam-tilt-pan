@@ -229,7 +229,10 @@ static esp_err_t cmd_handler(httpd_req_t *req){
         int val = atoi(variable);
         sensor_t * s = esp_camera_sensor_get();
         res = s->set_quality(s, val);
-      }    
+      }  
+      else if (httpd_query_key_value(buf, "reset", variable, sizeof(variable)) == ESP_OK) { // change camera quality
+        ESP.restart(); //when something not working
+      }      
       else if (httpd_query_key_value(buf, "eeprom", variable, sizeof(variable)) == ESP_OK) { // 0 to revert to last eeprom, 1 to save current tilt & pan to eeprom.
         int val = atoi(variable);
         if (val==1){

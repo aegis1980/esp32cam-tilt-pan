@@ -1,6 +1,6 @@
 
 
-const PROGMEM char INDEX_HTML[] = R"rawliteral(
+const char INDEX_HTML[] = R"rawliteral(
 <html>
   <head>
     <title>ESP32-CAM Robot</title>
