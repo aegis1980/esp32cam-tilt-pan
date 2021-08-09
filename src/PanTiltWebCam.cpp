@@ -222,6 +222,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
       else if (httpd_query_key_value(buf, "framesize", variable, sizeof(variable)) == ESP_OK) { // change camera resolution
         int val = atoi(variable);
         sensor_t * s = esp_camera_sensor_get();
+      
         if(s->pixformat == PIXFORMAT_JPEG) res = s->set_framesize(s, (framesize_t)val);
       } 
       else if (httpd_query_key_value(buf, "quality", variable, sizeof(variable)) == ESP_OK) { // change camera quality

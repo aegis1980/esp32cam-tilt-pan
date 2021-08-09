@@ -52,7 +52,7 @@ Move `<x>` degrees
 
 #### Change quality
 
-`<quality>` is an integer
+`<quality>` is an integer (0-63)
 
 ```http://<name>.local/action?quality=<quality>```
 
