@@ -1,7 +1,7 @@
 # Tilt-pan ESP32-Cam firmware
 
-Base code source for video stream server:
-https://RandomNerdTutorials.com/esp32-cam-projects-ebook/
+Original base code taken from here:
+https://randomnerdtutorials.com/esp32-cam-pan-and-tilt-2-axis/
 
 Also expressif demo code examples for ESP32-CAM 
 
@@ -14,6 +14,7 @@ Also expressif demo code examples for ESP32-CAM
 5. (web-api) User-control of amount of rotation as well as direction
 6. (web api) Change framesize and jpeg-quality
 7. Changed up web UI so you get tilt and pan updates.
+8. (Local network) OTA updating
 
 ## Config
 
@@ -71,3 +72,11 @@ Save current camera settings to EEPROM
 #### Software reset on ESP32
 
 ```http://<name>.local/action?reset=1```
+
+
+## OTA (or USB) flashing to ESP32
+
+Use esp32camUSB environment for uploading via USB - you'll have to do this first time anyway!
+
+Use esp32camOTA for OTA updating. 
+https://docs.platformio.org/en/latest/platforms/espressif32.html#over-the-air-ota-update
